@@ -1,6 +1,6 @@
-package chat.client;
+package chat_multi_clients.client;
 
-import chat.model.MessageType;
+import chat_multi_clients.model.ChatMessageType;
 
 import javax.swing.*;
 import java.awt.*;
@@ -10,7 +10,7 @@ import java.io.*;
 import java.net.Socket;
 
 /**
- * A simple Swing-based client for the chat server.  Graphically
+ * A simple Swing-based client for the chat_multi_clients server.  Graphically
  * it is a frame with a text field for entering messages and a
  * textarea to see the whole dialog.
  * <p/>
@@ -33,6 +33,8 @@ public class ClientFrame extends JFrame implements Runnable {
     private JLabel playerNameLabel;
 
     private JTextArea messageArea;
+
+    private String playerName;
 
     /**
      * Constructs the client by laying out the GUI and registering a
@@ -121,7 +123,7 @@ public class ClientFrame extends JFrame implements Runnable {
     class TextFieldListener implements ActionListener {
         @Override
         public void actionPerformed(ActionEvent e) {
-            out.println(messageField.getText());
+            out.println(playerName + messageField.getText());
             messageField.setText("");
         }
     }
@@ -139,21 +141,20 @@ public class ClientFrame extends JFrame implements Runnable {
                     socket.getInputStream()));
             out = new PrintWriter(socket.getOutputStream(), true);
 
-            String playerName = null;
-
             // Process all messages from server, according to the protocol.
             while (true) {
                 String line = in.readLine();
-                if (line.startsWith(MessageType.SUBMIT_NAME + "")) {
+                if (line == null) continue;
+                if (line.startsWith(ChatMessageType.SUBMIT_NAME + "")) {
                     playerName = getPlayerName();
                     out.println(playerName);
-                } else if (line.startsWith(MessageType.NAME_ACCEPTED + "")) {
+                } else if (line.startsWith(ChatMessageType.NAME_ACCEPTED + "")) {
                     playerNameLabel.setText("Login gracza: " + playerName);
-                } else if (line.startsWith(MessageType.MESSAGE + "")) {
+                } else if (line.startsWith(ChatMessageType.MESSAGE + "")) {
                     messageArea.append(line.replace("MESSAGE", "") + "\n");
-                } else if (line.startsWith(MessageType.START_GAME +"")) {
+                } else if (line.startsWith(playerName +"")) {
                     messageField.setEditable(true);
-                } else if (line.startsWith(MessageType.EXIT + "")) {
+                } else if (line.startsWith(ChatMessageType.EXIT + "")) {
                     dispose();
                 }
             }

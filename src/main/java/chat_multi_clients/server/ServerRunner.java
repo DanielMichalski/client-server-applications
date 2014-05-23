@@ -1,4 +1,4 @@
-package chat.server;
+package chat_multi_clients.server;
 
 /**
  * Author: Daniel

@@ -1,6 +1,6 @@
-package chat.server;
+package chat_multi_clients.server;
 
-import chat.model.MessageType;
+import chat_multi_clients.model.ChatMessageType;
 
 import javax.swing.*;
 import java.io.BufferedReader;
@@ -9,10 +9,11 @@ import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.util.HashSet;
+import java.util.Map;
+import java.util.TreeMap;
 
 /**
- * A multithreaded chat room server.  When a client connects the
+ * A multithreaded chat_multi_clients room server.  When a client connects the
  * server requests a screen playerName by sending the client the
  * text "SUBMITNAME", and keeps requesting a playerName until
  * a unique one is received.  After a client submits a unique
@@ -22,7 +23,7 @@ import java.util.HashSet;
  * broadcast messages are prefixed with "MESSAGE ".
  * <p/>
  * Because this is just a teaching example to illustrate a simple
- * chat server, there are a few features that have been left out.
+ * chat_multi_clients server, there are a few features that have been left out.
  * Two are very useful and belong in production code:
  * <p/>
  * 1. The protocol should be enhanced so that the client can
@@ -43,17 +44,23 @@ public class Server {
     private static final int MAX_PLAYERS = 2;
 
     /**
-     * The set of all names of clients in the chat room.  Maintained
+     * The set of all names of clients in the chat_multi_clients room.  Maintained
      * so that we can check that new clients are not registering playerName
      * already in use.
      */
-    private static final HashSet<String> names = new HashSet<String>();
+    private static final Map<String, PrintWriter> players = new TreeMap<String, PrintWriter>();
+
+    private static final Map<String, Integer> playersPrices = new TreeMap<String, Integer>();
+
+    private static boolean isGameStarted = false;
+
+//    private static final HashSet<String> names = new HashSet<String>();
 
     /**
      * The set of all the print writers for all the clients.  This
      * set is kept so we can easily broadcast messages.
      */
-    private static HashSet<PrintWriter> writers = new HashSet<PrintWriter>();
+//    private static HashSet<PrintWriter> writers = new HashSet<PrintWriter>();
 
     /**
      * A handler thread class.  Handlers are spawned from the listening
@@ -87,13 +94,13 @@ public class Server {
     }
 
     static class Handler extends Thread {
-        private String playerName;
 
         private Socket socket;
 
         private BufferedReader in;
 
         private PrintWriter out;
+
 
         /**
          * Constructs a handler thread, squirreling away the socket.
@@ -121,20 +128,34 @@ public class Server {
                 // checking for the existence of a playerName and adding the playerName
                 // must be done while locking the set of names.
 
-                waitForPlayers();
-                AcceptMessagesAndBroadcast();
+                waitForPlayer();
+
+                while (players.size() < MAX_PLAYERS) {
+                    try {
+                        Thread.sleep(1000);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                }
+
+                if (!isGameStarted) {
+                    sendMessageToAll("Gra rozpoczęta");
+                    isGameStarted = true;
+                }
+
+                startGame();
+
+
+//                AcceptMessagesAndBroadcast();
 
             } catch (IOException e) {
                 System.out.println(e);
             } finally {
                 // This client is going down!  Remove its playerName and its print
                 // writer from the sets, and close its socket.
-                if (playerName != null) {
-                    names.remove(playerName);
-                }
-                if (out != null) {
-                    writers.remove(out);
-                }
+//                if (playerName != null) {
+//                    players.remove(playerName);
+//                }
                 try {
                     socket.close();
                 } catch (IOException e) {
@@ -142,79 +163,113 @@ public class Server {
             }
         }
 
-        private void waitForPlayers() throws IOException {
+        private void waitForPlayer() throws IOException {
+            String playerName;
+
             while (true) {
-                out.println(MessageType.SUBMIT_NAME);
+                out.println(ChatMessageType.SUBMIT_NAME);
                 playerName = in.readLine();
                 if (playerName == null) {
                     return;
                 }
-                synchronized (names) {
-                    if (!names.contains(playerName)) {
-                        names.add(playerName);
+                synchronized (players) {
+                    if (!players.containsKey(playerName)) {
+                        out.println(ChatMessageType.NAME_ACCEPTED);
+                        players.put(playerName, out);
                         break;
                     }
                 }
             }
 
-            out.println(MessageType.NAME_ACCEPTED);
-            writers.add(out);
-
-            if (names.size() > MAX_PLAYERS) {
+            if (players.size() > MAX_PLAYERS) {
                 showMessageToMuchPlayers();
-                out.println(MessageType.EXIT);
+                out.println(ChatMessageType.EXIT);
                 return;
             }
 
-            sendMessagePlayerConnected(playerName, names.size()-1);
-
-            if (names.size() == MAX_PLAYERS) {
-                startGame();
-            }
+            sendMessagePlayerConnected(playerName, players.size() - 1);
 
         }
 
         private void startGame() {
-            sendCommandToAll(MessageType.START_GAME);
-            sendMessageToAll("Gra rozpoczęta");
-
-            for (String name : names) {
-                sendMessageToAll("Teraz licytuje " + name);
+            synchronized (players) {
+                for (String name : players.keySet()) {
+                    playersPrices.put(name, getPlayerPrice(name));
+                    System.out.println(name + " " +playersPrices);
+                }
             }
 
+            System.out.println("Koniec");
         }
 
-        private void sendMessageToAll(String text) {
-            for (PrintWriter writer : writers) {
-                writer.println(MessageType.MESSAGE + text);
-            }
-        }
+        private int getPlayerPrice(String playerName) {
+            String line;
+            int price;
 
-        private void sendCommandToAll(MessageType startGame) {
-            for (PrintWriter writer : writers) {
-                writer.println(MessageType.START_GAME);
-            }
-        }
+            sendMessageToAll("Teraz licytuje gracz: " + playerName);
 
-        private void AcceptMessagesAndBroadcast() throws IOException {
-            // Accept messages from this client and broadcast them.
-            // Ignore other clients that cannot be broadcasted to.
             while (true) {
-                String input = in.readLine();
-                if (input == null) {
-                    return;
+                try {
+                    players.get(playerName).println(playerName);
+
+                    line = in.readLine();
+                    if (line == null) {
+                        continue;
+                    }
+                    if (line.startsWith(playerName)) {
+                        price = Integer.parseInt(line);
+                        playersPrices.put(playerName, price);
+                    } else {
+                        out.println(ChatMessageType.MESSAGE + "Teraz nie jest Twoja kolej. Powinien licytować gracz: " + playerName);
+                        continue;
+                    }
+
+                } catch (IOException e) {
+                    continue;
                 }
-                for (PrintWriter writer : writers) {
-                    writer.println(MessageType.MESSAGE + playerName + ": " + input);
+
+                for (PrintWriter writer : players.values()) {
+                    writer.println(ChatMessageType.MESSAGE + "Gracz " + playerName + " podał kwotę: " + line.replaceFirst(playerName, ""));
                 }
+
+                break;
+            }
+
+            return price;
+        }
+
+        private void sendCommandToAll(ChatMessageType startGame) {
+            for (PrintWriter writer : players.values()) {
+                writer.println(ChatMessageType.START_GAME);
             }
         }
+
+        public void sendMessageToAll(String text) {
+            for (PrintWriter writer : players.values()) {
+                writer.println(ChatMessageType.MESSAGE + text);
+            }
+        }
+
+
+//        private void AcceptMessagesAndBroadcast() throws IOException {
+//            // Accept messages from this client and broadcast them.
+//            // Ignore other clients that cannot be broadcasted to.
+//            while (true) {
+//                String input = in.readLine();
+//                if (input == null) {
+//                    return;
+//                }
+//                for (PrintWriter writer : players.values()) {
+//                    writer.println(MessageType.MESSAGE + playerName + ": " + input);
+//                }
+//            }
+//        }
 
 
         private void sendMessagePlayerConnected(String playerName, int position) {
-            for (PrintWriter writer : writers) {
+            for (PrintWriter writer : players.values()) {
                 Position[] positions = Position.values();
-                writer.println(MessageType.MESSAGE
+                writer.println(ChatMessageType.MESSAGE
                         + "Gracz "
                         + playerName
                         + " podłączył się do gry i gra na pozycji "
