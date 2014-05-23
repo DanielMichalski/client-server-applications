@@ -12,29 +12,57 @@ import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.Socket;
 
+/**
+ * Klasa reprezentująca ogko dla pojedyńczego gracza
+ */
 public class ClientFrame extends JFrame {
 
+    /**
+     * Pole tekstowe z ceną do licytacji
+     */
     private JTextField messageField;
 
+    /**
+     * Obszar w którym będą wszystkie wiadomości od serwera
+     */
     private JTextArea messageArea;
 
+    /**
+     * Port klienta
+     */
     private static int PORT = 8002;
 
+    /**
+     * Socket klienta
+     */
     private Socket socket;
 
+    /**
+     * Strumień wejściowy klienta
+     */
     private BufferedReader in;
 
+    /**
+     * Strumień wyjściowy klienta
+     */
     private PrintWriter out;
 
     /**
-     * Constructs the client by connecting to a server, laying out the
-     * GUI and registering GUI listeners.
+     * Kontruktor oknta klienta, który przyjmuje jako
+     * parametr adres IP serwera
      */
     public ClientFrame(String serverAddress) throws Exception {
         setupFrame(serverAddress);
         initialize();
     }
 
+    /**
+     * Metoda ustawiająca ramkę
+     *
+     * @param serverAddress adres serwera
+     * @throws IOException Może wyrzucić wyjątek jeśli
+     *                     nie będzie mogła się podłaczyć do serwera
+     */
     private void setupFrame(String serverAddress) throws IOException {
         setTitle("Rozgrywka");
         setLocationRelativeTo(null);
@@ -47,27 +75,43 @@ public class ClientFrame extends JFrame {
         out = new PrintWriter(socket.getOutputStream(), true);
     }
 
+    /**
+     * Metoda inicjalizująca komponenty na oknie
+     */
     private void initialize() {
         messageField = createTextField();
         messageArea = createMessageArea();
 
         getContentPane().add(messageField, BorderLayout.NORTH);
-        getContentPane().add(messageArea, BorderLayout.CENTER);
+        getContentPane().add(new JScrollPane(messageArea), BorderLayout.CENTER);
     }
 
+    /**
+     * Metoda tworząca pole tekstowe z licytacją
+     *
+     * @return pole tekstowe z licytacją
+     */
     private JTextField createTextField() {
         messageField = new JTextField(40);
         messageField.addActionListener(new TextFieldListener());
         return messageField;
     }
 
+    /**
+     * Tworzy obszar w którym będą wyświetlane wiadomości z serwera
+     *
+     * @return obszar na wiadomości z serwera
+     */
     private JTextArea createMessageArea() {
         messageArea = new JTextArea(8, 40);
         messageArea.setEditable(false);
         return messageArea;
     }
 
-
+    /**
+     * Listener pola tekstoweg, który wykonuje akcję
+     * po wciśnięciu klawisza ENTER
+     */
     class TextFieldListener implements ActionListener {
         @Override
         public void actionPerformed(ActionEvent e) {
@@ -77,17 +121,8 @@ public class ClientFrame extends JFrame {
     }
 
     /**
-     * The main thread of the client will listen for messages
-     * from the server.  The first message will be a "WELCOME"
-     * message in which we receive our mark.  Then we go into a
-     * loop listening for "VALID_MOVE", "OPPONENT_MOVED", "VICTORY",
-     * "DEFEAT", "TIE", "OPPONENT_QUIT or "MESSAGE" messages,
-     * and handling each message appropriately.  The "VICTORY",
-     * "DEFEAT" and "TIE" ask the user whether or not to play
-     * another game.  If the answer is no, the loop is exited and
-     * the server is sent a "QUIT" message.  If an OPPONENT_QUIT
-     * message is recevied then the loop will exit and the server
-     * will be sent a "QUIT" message also.
+     * W tej metodzie klient komunikuje się z serwerem
+     * oraz przetwarza otrzymywane wyniki
      */
     public void play() throws Exception {
         String response;
@@ -102,30 +137,35 @@ public class ClientFrame extends JFrame {
                 } else if (response.startsWith(MessageType.WELCOME + "")) {
                     String playerName = response.replaceFirst("WELCOME", "");
                     setTitle("Gra w brydża - " + playerName);
-                } else if (response.startsWith(MessageType.VALID_PRICE + "")) {
-                    messageArea.append(response.replaceFirst("VALID_PRICE", "" + "\n"));
                 } else if (response.startsWith(MessageType.MESSAGE + "")) {
                     messageArea.append(response.replaceFirst("MESSAGE", "") + "\n");
                 } else if (response.startsWith(MessageType.QUIT + "")) {
-                    messageField.setEditable(false);
+                    showEndGameMessageAndeExit();
                 }
             }
+
         } finally {
             socket.close();
         }
     }
 
+    private void showEndGameMessageAndeExit() {
+        JOptionPane.showMessageDialog(
+                null,
+                "Gra się zakończyła");
+
+        dispose();
+    }
+
     /**
-     * Runs the client as an application.
+     * Główna metoda startowa klienta
      */
     public static void main(String[] args) throws Exception {
-        while (true) {
-            String serverAddress = "localhost";
-            ClientFrame frame = new ClientFrame(serverAddress);
-            frame.setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
-            frame.setVisible(true);
-            frame.setResizable(false);
-            frame.play();
-        }
+        String serverAddress = "localhost";
+        ClientFrame frame = new ClientFrame(serverAddress);
+        frame.setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
+        frame.setVisible(true);
+        frame.setResizable(false);
+        frame.play();
     }
 }
