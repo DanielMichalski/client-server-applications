@@ -18,7 +18,7 @@ public class Server {
 
     public static final int PORT = 8002;
 
-    public static final int MAX_PLAYERS = 2;
+    public static final int MAX_PLAYERS = 4;
 
     public int howManyConnectedPlayers = 0;
 
@@ -43,13 +43,13 @@ public class Server {
             while (true) {
                 Player player1 = new Player(listener.accept(), Position.NORTH, "Gracz 1");
                 Player player2 = new Player(listener.accept(), Position.EAST, "Gracz 2");
-//                Player player3 = new Player(listener.accept(), Position.SOUTH, "Gracz 3");
-//                Player player4 = new Player(listener.accept(), Position.WEST, "Gracz 4");
+                Player player3 = new Player(listener.accept(), Position.SOUTH, "Gracz 3");
+                Player player4 = new Player(listener.accept(), Position.WEST, "Gracz 4");
 
                 players.add(player1);
                 players.add(player2);
-//                players.add(player3);
-//                players.add(player4);
+                players.add(player3);
+                players.add(player4);
 
                 currentPlayer = player1;
                 currentPlayerNumber = 0;
